@@ -1,8 +1,9 @@
 /* HLL service worker: offline app shell + runtime font caching.
    App files are fetched network-first (revalidated, so GitHub Pages' 10-minute HTTP cache cannot hand back a stale copy)
    and fall back to the saved copy when offline or when the network takes longer than 4 s. Fonts are cache-first.
+   Only this folder is handled, and only caches named hll-v* are cleaned up, so other apps on this site keep theirs.
    Bump VERSION to force a clean cache. */
-const VERSION = "hll-v8";
+const VERSION = "hll-v9";
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png"];
 const FONT_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com"];
 const WAIT_MS = 4000;
@@ -14,7 +15,7 @@ self.addEventListener("install", (e) => {
 
 self.addEventListener("activate", (e) => {
   e.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k))))
+    caches.keys().then((keys) => Promise.all(keys.filter((k) => k.startsWith("hll-v") && k !== VERSION).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -25,6 +26,8 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(req.url);
   const sameOrigin = url.origin === self.location.origin;
   if (!sameOrigin && !FONT_HOSTS.includes(url.hostname)) return;
+  const here = new URL("./", self.location).pathname;   // this app's folder; files of other apps (or nested folders) are not ours
+  if (sameOrigin && (!url.pathname.startsWith(here) || url.pathname.slice(here.length).includes("/"))) return;
 
   e.respondWith((async () => {
     const cache = await caches.open(VERSION);
