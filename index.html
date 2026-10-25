@@ -380,6 +380,17 @@ background-color:var(--panel);background-image:repeating-linear-gradient(135deg,
 #v-art .app .tlk{top:0;bottom:0;height:auto;min-height:0;max-height:none}
 @media (max-height:700px){#v-art{--lg:6px;--tk:65px}}
 @media (max-height:600px){#v-art{--tk:58px}}
+/* mil ladder (replaces the shot list); the list fades out at its top and bottom edges to show it scrolls */
+#v-art .slist{gap:4px;padding-top:16px;padding-bottom:16px;-webkit-mask-image:linear-gradient(transparent 0,#000 16px,#000 calc(100% - 16px),transparent 100%);mask-image:linear-gradient(transparent 0,#000 16px,#000 calc(100% - 16px),transparent 100%)}
+#v-art .sr.lad{height:32px;min-height:32px;padding:0 14px;border-radius:10px}
+#v-art .sr.lad .sl{font-size:17px;font-weight:700}
+#v-art .sr.lad .sl span:first-child{font-size:15px;font-weight:600;color:var(--mute)}
+#v-art .sr.lad .sl b{font-size:19px;font-weight:800}
+#v-art .sr.lad .sl small{font-size:12px}
+#v-art .sr.lad.cur{border-color:#f2c40d;background:#17140a;box-shadow:0 0 0 1px rgba(242,196,13,.35)}
+#v-art .sr.lad.cur .sl span:first-child{color:var(--ink)}
+#v-art .sr.lad.cur .sl b{color:var(--yel)}
+@media (max-height:700px){#v-art .sr.lad{height:28px;min-height:28px}#v-art .sr.lad .sl b{font-size:17px}}
 #v-art #fac{display:none}
 #v-art .flagbox{position:relative;display:inline-block;flex:0 0 auto;height:1.2em;border-radius:8px;overflow:hidden;line-height:0}
 #v-art .flagbox svg{display:block;height:100%;width:auto}
@@ -433,7 +444,7 @@ background-color:var(--panel);background-image:repeating-linear-gradient(135deg,
   <div class="row fac" id="fac"></div>
   <section class="panel" id="p-stat"></section>
   <div class="lower">
-  <div class="shots" id="p-shots"><div class="shint" id="shint"><i></i><span>Previous shot</span><i></i></div><div class="slist" id="slist"></div></div>
+  <div class="shots" id="p-shots"><div class="shint" id="shint"><i></i><span>Mil ladder</span><i></i></div><div class="slist" id="slist"></div></div>
   <div class="tz"><button class="vbtn tlk" id="talk">TALK</button></div>
   </div>
 </div>
@@ -766,7 +777,36 @@ function makeCalc(id,cfg){
     return row;
   }
   function addSlot(){const r=makeRow();sbox.appendChild(r);return r}
-  function fillSlots(){}   // page 2 stays blank until a shot is fired
+  /* mil ladder: round 5 m steps within 100 m of the called distance, plus the called distance itself (highlighted, centred) */
+  const LSTEP=5,LSPAN=100;
+  let ladCur=null;
+  function centerLadder(smooth){
+    if(!sbox||!ladCur||!sbox.clientHeight)return;     // hidden view: it is centred again when the page is shown
+    const top=Math.max(0,ladCur.offsetTop-(sbox.clientHeight-ladCur.offsetHeight)/2);
+    const still=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if(smooth&&!still)sbox.scrollTo({top,behavior:"smooth"});else sbox.scrollTop=top;
+  }
+  function renderLadder(r){
+    if(!sbox)return;
+    if(r.d===null||r.mil===null){sbox.textContent="";ladCur=null;return}
+    const d=r.d,set=new Set([d]);
+    for(let x=Math.ceil((d-LSPAN)/LSTEP)*LSTEP;x<=d+LSPAN;x+=LSTEP)set.add(x);
+    const list=[...set].filter(x=>milFor(x)!==null).sort((a,b)=>a-b);
+    const keep=sbox.scrollTop,had=sbox.children.length>0,frag=document.createDocumentFragment();
+    ladCur=null;
+    for(const x of list){
+      const row=document.createElement("div");row.className="sr lad"+(x===d?" cur":"");
+      row.innerHTML='<div class="sl"><span></span><span><b></b><small>(mil)</small></span></div>';
+      row.querySelector("span").textContent=x+" m";
+      row.querySelector("b").textContent=milFor(x);
+      if(x===d)ladCur=row;
+      frag.appendChild(row);
+    }
+    sbox.textContent="";sbox.appendChild(frag);
+    sbox.scrollTop=keep;
+    centerLadder(had);
+  }
+  function fillSlots(){centerLadder(false)}
   function placeShot(s){
     const row=makeRow(),t=row._t;
     row.className="sr";
@@ -862,16 +902,13 @@ function makeCalc(id,cfg){
     if(last){lb.disabled=false;lb.textContent="Last shot: "+last.d+" m \u2192 "+last.mil+" mil"+(spa&&last.adjD?" ("+(last.adjNeg?"\u2212":"+")+last.adjD+")":"")+" - tap to restore"}
     else{lb.disabled=true;lb.textContent="Last shot: ---"}
     lb.style.visibility=last?"visible":"hidden";
+    renderLadder(r);
   }
   function logNow(hd){
     const r=calc();
     if(r.mil===null||logged)return;
     logged=true;
     last={d:r.d,mil:r.mil,prof,adjD,adjNeg};
-    const sh={d:r.d,mil:r.mil,at:Date.now()};
-    shots.push(sh);if(sbox)placeShot(sh);
-    if(!tm)tm=setInterval(renderShots,100);
-    renderShots();
     explode(hd);
     speak(String(r.mil).split("").join(" "));
   }

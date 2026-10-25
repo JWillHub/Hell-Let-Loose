@@ -3,7 +3,7 @@
    and fall back to the saved copy when offline or when the network takes longer than 4 s. Fonts are cache-first.
    Only this folder is handled, and only caches named hll-v* are cleaned up, so other apps on this site keep theirs.
    Bump VERSION to force a clean cache. */
-const VERSION = "hll-v9";
+const VERSION = "hll-v10";
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png"];
 const FONT_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com"];
 const WAIT_MS = 4000;
